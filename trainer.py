@@ -56,7 +56,8 @@ if __name__ == "__main__":
         per_gpu_train_batch_size=args.train_batch_size,
         per_gpu_eval_batch_size=args.valid_batch_size,
         per_device_train_batch_size=args.train_batch_size,
-        per_device_eval_batch_size=args.valid_batch_size
+        per_device_eval_batch_size=args.valid_batch_size,
+        learning_rate=args.lr,
     )
 
     trainer = Trainer(
@@ -66,3 +67,4 @@ if __name__ == "__main__":
         valid_dataset=valid_dataset
     )
 
+    trainer.train()
