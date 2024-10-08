@@ -74,10 +74,10 @@ if __name__ == "__main__":
         evaluation_strategy="epoch",
         learning_rate=args.lr,
         logging_strategy="steps",
-        logging_steps=500,
+        logging_steps=100,
         save_strategy="epoch",
-        save_total_limit=2,
-        logging_dir="./logs"
+        save_total_limit=1,
+        logging_dir=args.logs_dir
     )
 
     trainer = CustomLossTrainer(

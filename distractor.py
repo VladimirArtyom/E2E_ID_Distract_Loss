@@ -53,12 +53,12 @@ class CustomLossTrainer(Trainer):
 
         # We want distractors to be different from the correct answer (minimize similarity)
         # Therefore, loss should maximize the distance between the correct answer and the distractors
-        distractor_loss = -torch.log(torch.clamp(1 - sim_correct_to_distractors.mean(dim=1) , min=epsilon))  # Minimize similarity with correct answer
+        distractor_loss = torch.relu(-torch.log(torch.clamp(1 - sim_correct_to_distractors.mean(dim=1) , min=epsilon)))  # Minimize similarity with correct answer
         # Compute similarity between distractors themselves (to ensure plausibility)
         sim_distractors = fu.cosine_similarity(distractor_norm[:, 0, :].unsqueeze(1), distractor_norm[:, 1:, :], dim=2)  # Shape: (batch_size, num_distractors-1)
         
         # Loss to encourage distractors to be similar to each other (plausibility)
-        plausibility_loss = -torch.log(torch.clamp(sim_distractors.mean(dim=1) + epsilon, min=epsilon))  # Maximize similarity between distractors
+        plausibility_loss = torch.relu(-torch.log(torch.clamp(sim_distractors.mean(dim=1) + epsilon, min=epsilon)))  # Maximize similarity between distractors
 
         # Total loss is the sum of both terms
         loss = distractor_loss.mean() + plausibility_loss.mean()
