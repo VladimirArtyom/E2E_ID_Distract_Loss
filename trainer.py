@@ -24,13 +24,13 @@ def parse_argument() -> Namespace:
     parser.add_argument("--answer_token", type=str, default="<answer>")
     parser.add_argument("--context_token", type=str, default="<context>")
     parser.add_argument("--model_name", type=str, default="t5-small")
-    parser.add_argument("--save_dir", type=str, default="/content/drive/MyDrive/Thesis/distractor_data/model_1")
-    parser.add_argument("--epochs", type=int, default=1)
+    parser.add_argument("--save_dir", type=str, default="/content/drive/MyDrive/Thesis/distractor_data/model_2")
+    parser.add_argument("--epochs", type=int, default=5)
     parser.add_argument("--device", type=str, default="cuda")
-    parser.add_argument("--lr", type=float, default=1e-5)
+    parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--input_max_length", type=int, default=512)
     parser.add_argument("--target_max_length", type=int, default=512)
-    parser.add_argument("--logs_dir", type=str, default="/content/drive/MyDrive/Thesis/distractor_data/model_1/logs")
+    parser.add_argument("--logs_dir", type=str, default="/content/drive/MyDrive/Thesis/distractor_data/model_2/logs")
 
     return parser.parse_args()
 
@@ -123,13 +123,36 @@ class Driver():
         this.dgModel.load_state_dict(load(model_path,
                                           map_location=map_location)['state_dict'])
         return
+    def run_dg_from_checkpoint(
+            this,
+            train_df: DataFrame,
+            val_df: DataFrame,
+            test_df: DataFrame,
+            tokenizer: T5Tokenizer,
+            callbacks,
+            logger,
+            epochs,
+            accelerator
+    ):
+        results = []
+        this.prepare_distractor_generator_datasets(train_df,
+                                                   val_df,
+                                                   test_df,
+                                                   tokenizer)
 
+        results.append(this.train_distractor_generator(callbacks,
+                                                       logger,
+                                                       epochs,
+                                                       accelerator))
+        results.append(this.val_distractor_generator())
+        results.append(this.test_distractor_generator())
+
+        return results
     def run_dg(this,
                train_df: DataFrame,
                val_df: DataFrame,
                test_df: DataFrame,
                tokenizer: T5Tokenizer,
-
                model,
                new_tokenizer_len: int,
                optimizer,
@@ -325,17 +348,34 @@ if __name__ == "__main__":
         mode="min",
     )
     logger = TensorBoardLogger(args.logs_dir, name="distractor_log")
-    driv.run_dg(
-        DataFrame(train_data),
-        DataFrame(valid_data),
-        DataFrame(test_data),
-        tokenizer,
-        model,
-        len(tokenizer),
-        AdamW(model.parameters()),
-        args.lr,
-        callbacks=model_callbacks,
-        logger=logger
-    )
+    if args.load_model:
+        print("Running from the last checkpoint")
+        driv.prepare_distractor_generator_model(
+            model, len(tokenizer), AdamW, args.lr
+        )
+        driv.load_dg_model(args.load_model, args.device)
+        driv.run_dg_from_checkpoint(DataFrame(train_data),
+                                    DataFrame(valid_data),
+                                    DataFrame(test_data),
+                                    tokenizer,
+                                    model_callbacks,
+                                    logger,
+                                    args.epochs,
+                                    accelerator=args.acc)
+    else:   
+        print("Running from the beginning")
+        driv.run_dg(
+            DataFrame(train_data),
+            DataFrame(valid_data),
+            DataFrame(test_data),
+            tokenizer,
+            model,
+            len(tokenizer),
+            AdamW,
+            args.lr,
+            callbacks=model_callbacks,
+            logger=logger,
+            epochs=args.epochs
+        )
  
 
