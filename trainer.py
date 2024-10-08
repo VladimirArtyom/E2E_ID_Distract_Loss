@@ -19,11 +19,12 @@ def parse_argument() -> Namespace:
     parser.add_argument("--answer_token", type=str, default="<answer>")
     parser.add_argument("--context_token", type=str, default="<context>")
     parser.add_argument("--model_name", type=str, default="t5-small")
-    parser.add_argument("--save_dir", type=str, default=".")
+    parser.add_argument("--save_dir", type=str, default="/content/drive/MyDrive/Thesis/distractor_data/model_1")
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--lr", type=float, default=1e-5)
     parser.add_argument("--max_length", type=int, default=512)
+    parser.add_argument("--logs_dir", type=str, default="/content/drive/MyDrive/Thesis/distractor_data/model_1/logs")
 
     return parser.parse_args()
 
@@ -70,8 +71,9 @@ if __name__ == "__main__":
         num_train_epochs=args.epochs,
         per_device_train_batch_size=args.train_batch_size,
         per_device_eval_batch_size=args.valid_batch_size,
+        evaluation_strategy="epoch",
         learning_rate=args.lr,
-        logging_steps="steps",
+        logging_strategy="steps",
         logging_steps=500,
         save_strategy="epoch",
         save_total_limit=2,

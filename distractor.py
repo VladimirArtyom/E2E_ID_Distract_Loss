@@ -22,7 +22,6 @@ class CustomLossTrainer(Trainer):
         if eval_dataset is None:
             eval_dataset = this.eval_dataset
         return DataLoader(eval_dataset, batch_size=this.args.per_device_eval_batch_size, pin_memory=False)
-
     def compute_loss(this, model, inputs, return_outputs=False):
         # Forward pass to get the model outputs
         outputs = model(**inputs)
