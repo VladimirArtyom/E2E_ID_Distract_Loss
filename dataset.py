@@ -1,74 +1,178 @@
 import torch
+from pytorch_lightning import LightningModule, LightningDataModule
 
-from torch.utils.data import Dataset
-from transformers import AutoTokenizer
+from torch.utils.data import Dataset, DataLoader
+from transformers import AutoTokenizer, T5ForConditionalGeneration
 import pandas as pd
-from typing import Mapping, Tuple
+from pandas import DataFrame
+from typing import Mapping, Tuple, Dict
 from torch import Tensor
 
-class DistractorDataset(Dataset):
+class DGModel(LightningModule):
+    def __init__ (this, 
+                  model: T5ForConditionalGeneration,
+                  new_tokenizer_len: int,
+                  optimizer,
+                  optimizer_lr: float = 1e-4):
+        super().__init__()
+        this.model = model
+        this.model.resize_token_embeddings(new_tokenizer_len)
+        this.lr = optimizer_lr
+        this.opt = optimizer
 
-    def __init__(this, data: Dataset, max_length: int,
-                 tokenizer: AutoTokenizer,
+    def forward(this, input_ids, attention_mask, labels=None):
+        output: Tensor = this.model(input_ids=input_ids,
+                                    attention_mask=attention_mask,
+                                    labels=labels)
+        return output.loss, output.logits
+
+    def training_step(this, batch: Dict, batch_indx: int):
+        loss = this.exe_step(batch, batch_indx)
+        this.log("train_loss", loss, prog_bar=True, logger=True)
+        return loss
+
+    def validation_step(this, batch: Dict, batch_indx: int):
+        loss = this.exe_step(batch, batch_indx)
+        this.log("val_loss", loss, prog_bar=True, logger=True)
+        return loss
+
+    def test_step(this, batch: Dict, batch_indx: int):
+        loss = this.exe_step(batch, batch_indx)
+        this.log("test_loss", loss, prog_bar=True, logger=True)
+        return loss
+
+    def exe_step(this, batch: Dict, batch_indx: int):
+        input_ids: Tensor = batch["input_ids"]
+        attention_mask: Tensor = batch["attention_mask"]
+        labels: Tensor = batch["labels"]
+        loss, output = this(input_ids=input_ids,
+                            attention_mask=attention_mask,
+                            labels=labels)
+        return loss
+
+    def configure_optimizers(this):
+        return this.opt(this.parameters(),
+                        lr=this.lr)
+
+
+class DGDataset(Dataset):
+    def __init__(this,
+                 data: pd.DataFrame,
+                 tokenizer,
+                 sep_token: str,
+                 answer_token: str,
                  context_token: str,
                  question_token: str,
-                 answer_token: str,
-                 sep_token: str,
-                 device: str,
+                 max_source_token_len: int = 512,
+                 max_target_token_len: int = 512):
+        this.tokenizer = tokenizer
+        this.sep_token = sep_token
+        this.answer_token = answer_token
+        this.context_token = context_token
+        this.question_token = question_token
+        this.max_source_token_len = max_source_token_len
+        this.max_target_token_len = max_target_token_len
+        this.data = data
 
-                 ):
-        this.data: pd.DataFrame = pd.DataFrame(data)
-        this.max_length: int = max_length
-        this.tokenizer: AutoTokenizer = tokenizer
+    def __len__(this):
+        return this.data.shape[0]
 
-        this.context_token: str = context_token
-        this.question_token: str = question_token
-        this.answer_token: str = answer_token
-        this.sep_token: str = sep_token
-        this.device: str = device
-
-    def __len__(this) -> int:
-        return len(this.data)
-
-    def __getitem__(this, index: int) -> Mapping[str, Tensor]:
-        item = this.data.iloc[index, :]
-        context = item.context
-        question = item.question
-        answer = item.correct
-
-        distractor_1 = item.incorrect_1
-        distractor_2 = item.incorrect_2
-        distractor_3 = item.incorrect_3
-
-        input_text: str = f"{this.answer_token} {answer} {this.question_token} {question} {this.context_token} {context}"
-        target_text: str = f"{answer} {this.sep_token} {distractor_1} {this.sep_token} {distractor_2} {this.sep_token} {distractor_3}"
-        
-        
-        encoded_input_ids, encoded_input_att_mask = this._encode_text(input_text)
-        target_input_ids, target_att_mask = this._encode_text(target_text)
-        target_input_ids = this._mask_padding_label(target_input_ids)
-
-
-        return {
-            "input_ids": encoded_input_ids.to(this.device),
-            "attention_mask": encoded_input_att_mask.to(this.device),
-            "labels": target_input_ids.to(this.device),
-            #"labels_mask_ids": target_att_mask.to(this.device),
-        }
-
-
-    def _encode_text(this, text: str) -> Tuple[Tensor, Tensor]:
-
-        encoded = this.tokenizer(
-            text,
-            max_length=this.max_length,
+    def __getitem__(this, index: int):
+        row = this.data.iloc[index]
+        source_encoding = this.tokenizer(
+            "{} {} {} {} {}".format(this.answer_token,
+                                    row["correct"],
+                                    this.question_token,
+                                    row["question"],
+                                    this.context_token,
+                                    row["context"]),
+            max_length=this.max_source_token_len,
+            padding='max_length',
             truncation=True,
-            padding="max_length",
-            return_tensors="pt"
+            return_attention_mask=True,
+            add_special_tokens=True,
+            return_tensors='pt'
         )
 
-        return (encoded["input_ids"].flatten(),
-                encoded["attention_mask"].flatten())
+        target_encoding = this.tokenizer(
+            "{} {} {} {} {}".format(row["incorrect_1"],
+                                    this.sep_token,
+                                    row['incorrect_2'],
+                                    this.sep_token,
+                                    row['incorrect_3']),
+            max_length=this.max_target_token_len,
+            padding='max_length',
+            truncation=True,
+            return_attention_mask=True,
+            add_special_tokens=True,
+            return_tensors='pt'
+        )
+        labels = target_encoding['input_ids']
+        labels[labels == 0] = -100
+        return dict(
+            input_ids=source_encoding['input_ids'].flatten(),
+            attention_mask=source_encoding['attention_mask'].flatten(),
+            labels=labels.flatten())
 
-    def _mask_padding_label(this, labels: Tensor) -> Tensor:
-        return torch.where(labels == this.tokenizer.pad_token_id, -100, labels)
+
+class DGDataModule(LightningDataModule):
+    def __init__(this,
+                 train_df: DataFrame,
+                 val_df: DataFrame,
+                 test_df: DataFrame,
+
+                 tokenizer,
+                 sep_token: str,
+                 question_token: str,
+                 context_token: str,
+                 answer_token: str,
+
+                 batch_size: int,
+                 valid_batch_size: int,
+                 max_source_token_len,
+                 max_target_token_len,
+                 ):
+        super().__init__()
+        this.train_df: DataFrame = train_df
+        this.val_df: DataFrame = val_df
+        this.test_df: DataFrame = test_df
+
+        this.tokenizer = tokenizer
+        this.context_token = context_token
+        this.question_token = question_token
+        this.answer_token = answer_token
+        this.sep_token = sep_token
+        this.batch_size = batch_size
+        this.val_batch_size = valid_batch_size
+
+        this.max_source_token_len = max_source_token_len
+        this.max_target_token_len = max_target_token_len
+
+    def setup(this, stage: str = None) -> None:
+        this.train_dataset = DGDataset(this.train_df, this.tokenizer,
+                                       this.sep_token,
+                                       this.max_source_token_len,
+                                       this.max_target_token_len)
+
+        this.val_dataset = DGDataset(this.train_df, this.tokenizer,
+                                     this.sep_token,
+                                     this.max_source_token_len,
+                                     this.max_target_token_len)
+
+        this.test_dataset = DGDataset(this.train_df, this.tokenizer,
+                                      this.sep_token,
+                                      this.max_source_token_len,
+                                      this.max_target_token_len)
+        return
+
+    def train_dataloader(this):
+        return DataLoader(this.train_dataset, batch_size=this.batch_size,
+                          shuffle=True, num_workers=-1)
+
+    def val_dataloader(this):
+        return DataLoader(this.val_dataset, batch_size=this.val_batch_size,
+                          num_workers=-1)
+
+    def test_dataloader(this):
+        return DataLoader(this.test_dataset, batch_size=this.val_batch_size,
+                          num_workers=-1)
