@@ -13,8 +13,8 @@ class DistractorDataset(Dataset):
                  context_token: str,
                  question_token: str,
                  answer_token: str,
-                 sep_token: str
-
+                 sep_token: str,
+                 device: str,
 
                  ):
         this.data: pd.DataFrame = pd.DataFrame(data)
@@ -25,6 +25,7 @@ class DistractorDataset(Dataset):
         this.question_token: str = question_token
         this.answer_token: str = answer_token
         this.sep_token: str = sep_token
+        this.device: str = device
 
     def __len__(this) -> int:
         return len(this.data)
@@ -33,27 +34,26 @@ class DistractorDataset(Dataset):
         item = this.data.iloc[index, :]
         context = item.context
         question = item.question
-        answer = item.answer
+        answer = item.correct
 
-        distractor_1 = item.distractor_1
-        distractor_2 = item.distractor_2
-        distractor_3 = item.distractor_3
+        distractor_1 = item.incorrect_1
+        distractor_2 = item.incorrect_2
+        distractor_3 = item.incorrect_3
 
         input_text: str = f"{this.answer_token} {answer} {this.question_token} {question} {this.context_token} {context}"
-        target_text: str = f"{this.sep_token} {distractor_1} {this.sep_token} {distractor_2} {this.sep_token} {distractor_3}"
-        correct_answer: str = f"{this.answer_token} {answer}"
-        e_correct = this._mask_padding_label(this._encode_text(correct_answer)[0])
+        target_text: str = f"{answer} {this.sep_token} {distractor_1} {this.sep_token} {distractor_2} {this.sep_token} {distractor_3}"
+        
+        
         encoded_input_ids, encoded_input_att_mask = this._encode_text(input_text)
         target_input_ids, target_att_mask = this._encode_text(target_text)
         target_input_ids = this._mask_padding_label(target_input_ids)
 
 
         return {
-            "input_ids": encoded_input_ids,
-            "attetion_mask": encoded_input_att_mask,
-            "labels_ids": target_input_ids,
-            "labels_mask_ids": target_att_mask,
-            "correct_answer_ids": e_correct#use for calculating loss
+            "input_ids": encoded_input_ids.to(this.device),
+            "attention_mask": encoded_input_att_mask.to(this.device),
+            "labels": target_input_ids.to(this.device),
+            #"labels_mask_ids": target_att_mask.to(this.device),
         }
 
 
