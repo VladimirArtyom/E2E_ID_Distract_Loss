@@ -31,6 +31,8 @@ def parse_argument() -> Namespace:
     parser.add_argument("--input_max_length", type=int, default=512)
     parser.add_argument("--target_max_length", type=int, default=512)
     parser.add_argument("--logs_dir", type=str, default="/content/drive/MyDrive/Thesis/distractor_data/model_2/logs")
+    parser.add_argument("--acc", type=str, default="gpu")
+    parser.add_argument("--load_model", type=str, default="/content/drive/MyDrive/Thesis/distractor_data/model_1/best_checkpoint.ckpt")
 
     return parser.parse_args()
 
