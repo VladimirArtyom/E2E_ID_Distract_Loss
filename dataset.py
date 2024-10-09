@@ -157,7 +157,7 @@ class DGDataModule(LightningDataModule):
                                        this.max_source_token_len,
                                        this.max_target_token_len)
 
-        this.val_dataset = DGDataset(this.train_df, this.tokenizer,
+        this.val_dataset = DGDataset(this.val_df, this.tokenizer,
                                      this.sep_token,
                                      this.answer_token,
                                      this.context_token,
@@ -165,7 +165,7 @@ class DGDataModule(LightningDataModule):
                                      this.max_source_token_len,
                                      this.max_target_token_len)
 
-        this.test_dataset = DGDataset(this.train_df, this.tokenizer,
+        this.test_dataset = DGDataset(this.test_df, this.tokenizer,
                                       this.sep_token,
                                       this.answer_token,
                                       this.context_token,
