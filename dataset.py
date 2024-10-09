@@ -151,28 +151,37 @@ class DGDataModule(LightningDataModule):
     def setup(this, stage: str = None) -> None:
         this.train_dataset = DGDataset(this.train_df, this.tokenizer,
                                        this.sep_token,
+                                       this.answer_token,
+                                       this.context_token,
+                                       this.question_token,
                                        this.max_source_token_len,
                                        this.max_target_token_len)
 
         this.val_dataset = DGDataset(this.train_df, this.tokenizer,
                                      this.sep_token,
+                                     this.answer_token,
+                                     this.context_token,
+                                     this.question_token,
                                      this.max_source_token_len,
                                      this.max_target_token_len)
 
         this.test_dataset = DGDataset(this.train_df, this.tokenizer,
                                       this.sep_token,
+                                      this.answer_token,
+                                      this.context_token,
+                                      this.question_token,
                                       this.max_source_token_len,
                                       this.max_target_token_len)
         return
 
     def train_dataloader(this):
         return DataLoader(this.train_dataset, batch_size=this.batch_size,
-                          shuffle=True, num_workers=-1)
+                          shuffle=True, num_workers=2)
 
     def val_dataloader(this):
         return DataLoader(this.val_dataset, batch_size=this.val_batch_size,
-                          num_workers=-1)
+                          num_workers=2)
 
     def test_dataloader(this):
         return DataLoader(this.test_dataset, batch_size=this.val_batch_size,
-                          num_workers=-1)
+                          num_workers=2)
